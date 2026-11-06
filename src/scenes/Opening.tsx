@@ -30,16 +30,20 @@ function Venue() {
       <div className="absolute left-1/2 top-0 h-[62%] w-[52%] -translate-x-1/2">
         <FlowerArch />
       </div>
+      {/* lanterns either side of the arch, cake stand beside it */}
+      <img src={S('prop_lantern')} alt="" className="absolute bottom-[40%] left-[17%] h-[17%]" />
+      <img src={S('prop_lantern')} alt="" className="absolute bottom-[40%] right-[17%] h-[17%] -scale-x-100" />
+      <img src={S('prop_cakestand')} alt="A wedding cake on a stand" className="absolute bottom-[42%] right-[-2%] h-[40%]" />
       {rows.map((r, i) => (
         <div key={i}>
           {[0, 1].map((k) => (
             <div key={k} className="absolute" style={{ top: `${r.y}%`, left: `${(k === 0 ? 30 - i * 7 : 70 + i * 7) - r.s * 6}%`, width: `${r.s * 12}%`, height: `${r.s * 18}%` }}>
-              <Chair flip={k === 1} />
+              <Chair flip={k === 1} color={k === 0 ? 'blue' : 'gold'} />
             </div>
           ))}
           {[0, 1].map((k) => (
             <div key={`b${k}`} className="absolute" style={{ top: `${r.y}%`, left: `${(k === 0 ? 14 - i * 9 : 86 + i * 9) - r.s * 6}%`, width: `${r.s * 12}%`, height: `${r.s * 18}%` }}>
-              <Chair flip={k === 1} />
+              <Chair flip={k === 1} color={k === 0 ? 'lav' : 'green'} />
             </div>
           ))}
         </div>
@@ -92,10 +96,7 @@ export function Opening({ onBegin }: { onBegin: () => void }) {
       </div>
 
       <div className="relative flex h-full flex-col items-center px-4" style={{ paddingTop: 'max(14px, env(safe-area-inset-top))', paddingBottom: 'max(18px, env(safe-area-inset-bottom))' }}>
-        {/* title banner (from the user's style sheet) */}
-        <h1 className="anim-bob mt-2 w-[min(84vw,460px)] shrink-0 sm:mt-4">
-          <img src={S('ui_banner')} alt="Our Wedding Day 11.28.26" className="w-full drop-shadow-[0_8px_16px_rgba(214,77,119,0.25)]" />
-        </h1>
+        <h1 className="sr-only">Our Chibi Wedding Adventure</h1>
 
         {/* stage: venue in the distance, bride from behind looking at it */}
         <div className="relative w-full max-w-5xl flex-1">

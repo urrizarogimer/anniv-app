@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties } from 'react'
+import { S, type ChairColor } from '../assets'
 
 // Small deterministic random generator so decorations look the same on every render.
 export function rng(seed: number) {
@@ -133,21 +134,16 @@ export function FlowerArch({ seed = 3 }: { seed?: number }) {
   )
 }
 
-/** White garden chair with a flower on its back, 40 x 60 box. */
-export function Chair({ flip = false }: { flip?: boolean }) {
+/** Covered wedding chair seen from behind, with a satin bow (art from the entourage sheet). Fills its box, bottom-aligned. */
+export function Chair({ flip = false, color = 'blue' }: { flip?: boolean; color?: ChairColor }) {
   return (
-    <svg viewBox="0 0 40 62" className="h-full w-full overflow-visible" aria-hidden style={{ transform: flip ? 'scaleX(-1)' : undefined }}>
-      <rect x={6} y={2} width={28} height={28} rx={7} fill="#fffaf2" stroke="#e5d3c0" strokeWidth={1.5} />
-      <rect x={11} y={7} width={18} height={18} rx={4} fill="none" stroke="#efe2d2" strokeWidth={1.2} />
-      <rect x={4} y={30} width={32} height={8} rx={3} fill="#fffaf2" stroke="#e5d3c0" strokeWidth={1.5} />
-      <rect x={7} y={38} width={4} height={22} rx={2} fill="#fffaf2" stroke="#e5d3c0" />
-      <rect x={29} y={38} width={4} height={22} rx={2} fill="#fffaf2" stroke="#e5d3c0" />
-      <Leaf x={14} y={6} s={5} rot={-30} />
-      <Leaf x={26} y={6} s={5} rot={30} />
-      <Rose x={20} y={5} r={5.5} c={0} />
-      <Rose x={14} y={9} r={3.5} c={2} />
-      <Rose x={26} y={9} r={3.5} c={1} />
-    </svg>
+    <img
+      src={S(`chair_${color}`)}
+      alt=""
+      draggable={false}
+      className="h-full w-full object-contain object-bottom"
+      style={{ transform: flip ? 'scaleX(-1)' : undefined, filter: 'drop-shadow(0 3px 3px rgba(120,90,70,0.18))' }}
+    />
   )
 }
 

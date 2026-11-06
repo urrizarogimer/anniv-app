@@ -188,7 +188,7 @@ export function Ceremony({ onDone }: { onDone: () => void }) {
                     zIndex: Math.round(y),
                   }}
                 >
-                  <Chair flip={side > 0} />
+                  <Chair flip={side > 0} color={side < 0 ? (i < 2 ? 'blue' : k % 2 ? 'lav' : 'green') : i < 2 ? 'gold' : k % 2 ? 'green' : 'lav'} />
                 </div>
               )),
             )}

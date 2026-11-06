@@ -116,6 +116,16 @@ export function Celebration({ onDone }: { onDone: () => void }) {
       <div className="absolute bottom-[14%] left-1/2 aspect-[220/260] h-[64%] max-w-[110vw] -translate-x-1/2 opacity-95">
         <FlowerArch seed={9} />
       </div>
+      {/* lanterns by the arch and the wedding cake, behind the couple */}
+      <img src={S('prop_lantern')} alt="" draggable={false} className="absolute bottom-[19%] left-[calc(50%-min(36vh,52vw))] h-[16%]" />
+      <img src={S('prop_lantern')} alt="" draggable={false} className="absolute bottom-[19%] left-[calc(50%+min(36vh,52vw)-6vh)] h-[16%] -scale-x-100" />
+      <img
+        src={S('prop_cakestand')}
+        alt="The wedding cake on a stand"
+        draggable={false}
+        className="absolute bottom-[11%] right-[3%] h-[min(40%,62vw)] sm:right-[9%]"
+        style={{ filter: 'drop-shadow(0 8px 8px rgba(120,80,90,0.2))' }}
+      />
       <svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMax meet" className="absolute bottom-[8%] left-0 h-[16%] w-[34%]" aria-hidden>
         <RoseBush x={45} y={40} w={70} seed={12} />
       </svg>

@@ -1,6 +1,7 @@
 // Canvas drawing for the garden world: a static ground layer plus depth-sorted props.
 import { rng, ROSE_COLORS } from '../components/Decor'
 import type { ItemId } from '../items'
+import { img } from '../assets'
 
 export const WW = 1800
 export const WH = 1060
@@ -13,7 +14,7 @@ export interface Obstacle {
 }
 
 export interface Prop {
-  kind: 'tree' | 'bush' | 'arch' | 'lamp' | 'bench' | 'fountain' | 'cart'
+  kind: 'tree' | 'bush' | 'arch' | 'lamp' | 'bench' | 'fountain' | 'cart' | 'stage'
   x: number
   y: number // base (feet) y, used for depth sorting
   seed: number
@@ -28,7 +29,7 @@ export const PROPS: Prop[] = [
   { kind: 'lamp', x: 690, y: 430, seed: 1 },
   { kind: 'lamp', x: 1110, y: 430, seed: 2 },
   { kind: 'cart', x: 1500, y: 500, seed: 1 },
-  { kind: 'bench', x: 330, y: 470, seed: 1 },
+  { kind: 'stage', x: 330, y: 486, seed: 1 },
   { kind: 'bench', x: 1360, y: 820, seed: 2 },
   { kind: 'tree', x: 120, y: 420, seed: 11 },
   { kind: 'tree', x: 520, y: 380, seed: 12 },
@@ -48,7 +49,16 @@ export const PROPS: Prop[] = [
   { kind: 'bush', x: 1380, y: 1020, seed: 30 },
 ]
 
-export const OBSTACLES: Obstacle[] = PROPS.flatMap((p): Obstacle[] => {
+/** The concert stage in the top-left lawn: (x, y) is the middle of its front edge. Tap it to start the show. */
+export const STAGE = { x: 330, y: 486, halfW: 136, h: 300, deckY: 486 - 66 }
+
+/** The gate to the K-Drama Garden, at the end of the right-hand path: (x, y) is its base. */
+export const KGATE = { x: 1700, y: 600, halfW: 70, h: 220 }
+
+export const OBSTACLES: Obstacle[] = [
+  { x: KGATE.x - 62, y: KGATE.y - 4, r: 12 },
+  { x: KGATE.x + 62, y: KGATE.y - 4, r: 12 },
+  ...PROPS.flatMap((p): Obstacle[] => {
   switch (p.kind) {
     case 'tree':
       return [{ x: p.x, y: p.y - 6, r: 26 }]
@@ -64,8 +74,11 @@ export const OBSTACLES: Obstacle[] = PROPS.flatMap((p): Obstacle[] => {
       return [{ x: p.x - 40, y: p.y - 10, r: 22 }, { x: p.x + 40, y: p.y - 10, r: 22 }]
     case 'cart':
       return [{ x: p.x - 40, y: p.y - 14, r: 30 }, { x: p.x + 40, y: p.y - 14, r: 30 }]
+    case 'stage':
+      return [-96, -32, 32, 96].map((dx) => ({ x: p.x + dx, y: p.y - 40, r: 44 }))
   }
-})
+  }),
+]
 
 export const ITEM_SPOTS: Record<ItemId, [number, number]> = {
   dress: [250, 590],
@@ -82,7 +95,7 @@ export const START: [number, number] = [900, 900]
 
 // ---------------------------------------------------------------- helpers
 
-function rose(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: number) {
+export function rose(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: number) {
   const [fill, line] = ROSE_COLORS[c % ROSE_COLORS.length]
   ctx.save()
   ctx.translate(x, y)
@@ -107,7 +120,7 @@ function rose(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c:
   ctx.restore()
 }
 
-function leaf(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rot: number) {
+export function leaf(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rot: number) {
   ctx.save()
   ctx.translate(x, y)
   ctx.rotate((rot * Math.PI) / 180)
@@ -121,7 +134,7 @@ function leaf(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, ro
   ctx.restore()
 }
 
-function blob(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, fill: string, stroke?: string, lw = 2) {
+export function blob(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, fill: string, stroke?: string, lw = 2) {
   ctx.beginPath()
   ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2)
   ctx.fillStyle = fill
@@ -133,7 +146,7 @@ function blob(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, r
   }
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.arcTo(x + w, y, x + w, y + h, r)
@@ -143,11 +156,11 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-function shadow(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
+export function shadow(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
   blob(ctx, x, y, rx, ry, 'rgba(90,120,70,0.22)')
 }
 
-function bushShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number) {
+export function bushShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number) {
   const r = rng(seed)
   shadow(ctx, x, y, w * 0.55, h * 0.16)
   blob(ctx, x, y - h * 0.42, w / 2, h * 0.5, '#a9cf94', '#7fae6a', 2)
@@ -163,7 +176,7 @@ function bushShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 // ---------------------------------------------------------------- props
 
-function makeCanvas(w: number, h: number, scale: number) {
+export function makeCanvas(w: number, h: number, scale: number) {
   const c = document.createElement('canvas')
   c.width = Math.ceil(w * scale)
   c.height = Math.ceil(h * scale)
@@ -420,6 +433,121 @@ export function renderProp(p: Prop, scale: number) {
         }
       }
       break
+    case 'stage':
+      w = 320; h = 300; ax = 160; ay = 290
+      draw = (ctx) => {
+        shadow(ctx, ax, ay, 150, 14)
+        // lighting truss
+        ctx.fillStyle = '#e4dff0'
+        ctx.strokeStyle = '#9f95b8'
+        ctx.lineWidth = 2
+        for (const dx of [-128, 120]) {
+          roundRect(ctx, ax + dx, ay - 268, 8, 210, 3)
+          ctx.fill()
+          ctx.stroke()
+        }
+        roundRect(ctx, ax - 134, ay - 274, 268, 12, 4)
+        ctx.fill()
+        ctx.stroke()
+        const spots = ['#c9a7ff', '#ffb3d1', '#fff1b8', '#a7d4ff', '#ffb3d1', '#c9a7ff']
+        spots.forEach((col, i) => {
+          const sx = ax - 105 + i * 42
+          roundRect(ctx, sx - 7, ay - 264, 14, 14, 3)
+          ctx.fillStyle = '#4b3a6e'
+          ctx.fill()
+          blob(ctx, sx, ay - 250, 5, 4, col)
+        })
+        // LED back screen
+        const scr = ctx.createLinearGradient(0, ay - 245, 0, ay - 90)
+        scr.addColorStop(0, '#3a2470')
+        scr.addColorStop(1, '#7a52c9')
+        roundRect(ctx, ax - 112, ay - 246, 224, 160, 12)
+        ctx.fillStyle = scr
+        ctx.fill()
+        ctx.strokeStyle = '#2a1b52'
+        ctx.lineWidth = 3
+        ctx.stroke()
+        const r = rng(p.seed + 4)
+        for (let i = 0; i < 40; i++) {
+          ctx.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.7)' : 'rgba(255,190,230,0.6)'
+          ctx.beginPath()
+          ctx.arc(ax - 104 + r() * 208, ay - 238 + r() * 140, 0.8 + r() * 1.6, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        const logo = img('bts_logo')
+        if (logo) {
+          const lh = 104
+          const lw = (logo.width / logo.height) * lh
+          ctx.save()
+          ctx.shadowColor = 'rgba(255,255,255,0.8)'
+          ctx.shadowBlur = 14
+          ctx.drawImage(logo, ax - lw / 2, ay - 228, lw, lh)
+          ctx.restore()
+        }
+        // curtains
+        for (const s of [-1, 1]) {
+          ctx.beginPath()
+          ctx.moveTo(ax + s * 112, ay - 250)
+          ctx.quadraticCurveTo(ax + s * 84, ay - 170, ax + s * 100, ay - 80)
+          ctx.lineTo(ax + s * 132, ay - 80)
+          ctx.quadraticCurveTo(ax + s * 126, ay - 170, ax + s * 134, ay - 250)
+          ctx.closePath()
+          ctx.fillStyle = '#a383e6'
+          ctx.fill()
+          ctx.strokeStyle = '#6d4fb4'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(ax + s * 120, ay - 245)
+          ctx.quadraticCurveTo(ax + s * 108, ay - 170, ax + s * 116, ay - 84)
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+          ctx.stroke()
+        }
+        // deck top and front
+        ctx.beginPath()
+        ctx.moveTo(ax - 140, ay - 62)
+        ctx.lineTo(ax + 140, ay - 62)
+        ctx.lineTo(ax + 120, ay - 96)
+        ctx.lineTo(ax - 120, ay - 96)
+        ctx.closePath()
+        ctx.fillStyle = '#c7b4f2'
+        ctx.fill()
+        ctx.strokeStyle = '#6d4fb4'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'
+        ctx.fillRect(ax - 110, ay - 90, 220, 4)
+        const front = ctx.createLinearGradient(0, ay - 62, 0, ay - 4)
+        front.addColorStop(0, '#8d6bdb')
+        front.addColorStop(1, '#5d3fae')
+        roundRect(ctx, ax - 140, ay - 62, 280, 58, 8)
+        ctx.fillStyle = front
+        ctx.fill()
+        ctx.stroke()
+        for (let i = 0; i < 15; i++) blob(ctx, ax - 126 + i * 18, ay - 52, 3, 3, i % 2 ? '#fff1b8' : '#ffd6ea')
+        // speakers
+        for (const s of [-1, 1]) {
+          const sx = ax + s * 118
+          roundRect(ctx, sx - 16, ay - 128, 32, 46, 5)
+          ctx.fillStyle = '#2f2640'
+          ctx.fill()
+          blob(ctx, sx, ay - 116, 7, 7, '#55486e')
+          blob(ctx, sx, ay - 96, 10, 10, '#55486e')
+        }
+        // sign on the deck front
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#fff'
+        ctx.shadowColor = 'rgba(255,214,234,0.9)'
+        ctx.shadowBlur = 6
+        ctx.font = '800 15px Quicksand, ui-rounded, sans-serif'
+        ctx.fillText('\u2726 EXCLUSIVE CONCERT \u2726', ax, ay - 37)
+        ctx.fillStyle = '#fff3b0'
+        ctx.font = '700 17px "Dancing Script", cursive'
+        ctx.fillText('for your Anniversary', ax, ay - 19)
+        ctx.shadowBlur = 0
+      }
+      break
   }
   const { c, ctx } = makeCanvas(w, h, scale)
   draw(ctx)
@@ -657,8 +785,8 @@ export const LIGHT_STRINGS: [number, number, number, number, number][] = [
   [1110, 238, 1500, 300, 60],
 ]
 
-export function drawLights(ctx: CanvasRenderingContext2D, t: number) {
-  for (const [x1, y1, x2, y2, sag] of LIGHT_STRINGS) {
+export function drawLights(ctx: CanvasRenderingContext2D, t: number, strings = LIGHT_STRINGS) {
+  for (const [x1, y1, x2, y2, sag] of strings) {
     const mx = (x1 + x2) / 2
     const my = (y1 + y2) / 2 + sag * 2
     ctx.strokeStyle = 'rgba(110,95,90,0.55)'

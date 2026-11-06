@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { audio } from '../audio'
-import { Ambient } from '../components/Ambient'
+import { Ambient, useBursts } from '../components/Ambient'
+import { AUD_H, AUD_W, Audience } from '../components/Audience'
 import { rng } from '../components/Decor'
 import { MuteButton } from '../components/MuteButton'
 
@@ -71,7 +72,17 @@ function Bokeh() {
 export function Ending({ onPlayAgain }: { onPlayAgain: () => void }) {
   const vp = useViewport()
   const [showReplay, setShowReplay] = useState(false)
+  const [bursts, fire] = useBursts()
+  const rootRef = useRef<HTMLDivElement>(null)
   const portrait = vp.w / vp.h < 0.95
+  // The seated wedding party fills a band along the bottom; the picture sits above it.
+  const bandH = portrait ? Math.min(vp.h * 0.34, vp.w * 0.62) : Math.min(vp.h * 0.46, vp.w * 0.28)
+  const bandW = (bandH * AUD_W) / AUD_H
+  const picH = vp.h - bandH * 0.7
+  const cheer = (x: number, y: number) => {
+    const r = rootRef.current?.getBoundingClientRect()
+    if (r) fire(x - r.left, y - r.top, { count: 10, kinds: ['heart', 'sparkle'], spread: 110 })
+  }
 
   useEffect(() => {
     const t1 = window.setTimeout(() => audio.sfx('chime'), 1200)
@@ -100,7 +111,7 @@ export function Ending({ onPlayAgain }: { onPlayAgain: () => void }) {
     const overlap = 0.12
     const coupleH = (w: number) => (IH * w) / COUPLE.w
     const signH = (w: number) => (IH * w) / SIGN.w
-    const avail = vp.h * 0.9
+    const avail = picH * 0.96
     const total = (w: number) => coupleH(w) + signH(w) * (1 - overlap)
     const w = Math.min(vp.w, avail / (total(1) || 1))
     content = (
@@ -112,28 +123,32 @@ export function Ending({ onPlayAgain }: { onPlayAgain: () => void }) {
       </div>
     )
   } else {
-    const s = Math.min(vp.w / IW, vp.h / IH)
+    const s = Math.min((vp.w * 0.98) / IW, (picH * 0.97) / IH)
     content = (
-      <img
-        src={SRC}
-        alt="The groom kissing the bride's cheek in a rose garden, beside a floral sign"
-        draggable={false}
-        style={{ width: IW * s, height: IH * s, WebkitMaskImage: 'radial-gradient(ellipse 72% 76% at 50% 50%, #000 82%, transparent 100%)', maskImage: 'radial-gradient(ellipse 72% 76% at 50% 50%, #000 82%, transparent 100%)' }}
-      />
+      // the outer fade melts the bottom edge into the lawn behind the seats
+      <div style={{ WebkitMaskImage: 'linear-gradient(to bottom, #000 87%, transparent 100%)', maskImage: 'linear-gradient(to bottom, #000 87%, transparent 100%)' }}>
+        <img
+          src={SRC}
+          alt="The groom kissing the bride's cheek in a rose garden, beside a floral sign"
+          draggable={false}
+          className="block"
+          style={{ width: IW * s, height: IH * s, WebkitMaskImage: 'radial-gradient(ellipse 72% 76% at 50% 50%, #000 82%, transparent 100%)', maskImage: 'radial-gradient(ellipse 72% 76% at 50% 50%, #000 82%, transparent 100%)' }}
+        />
+      </div>
     )
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#fff4ec]">
+    <div ref={rootRef} className="absolute inset-0 overflow-hidden bg-[#fff4ec]">
       {/* soft blurred fill behind the picture */}
       <img src={SRC} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-80" style={{ filter: 'blur(22px) saturate(1.1)' }} />
       <div className="absolute inset-0 bg-gradient-to-b from-[#fff8ea]/40 via-transparent to-[#ffe6ee]/40" />
 
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-x-0 top-0 flex items-center justify-center"
         role="img"
         aria-label="Happy 8th Anniversary! See you on our Wedding Day!"
-        style={{ animation: 'ken-burns 24s ease-in-out infinite alternate' }}
+        style={{ height: picH, animation: 'ken-burns 24s ease-in-out infinite alternate' }}
       >
         {content}
       </div>
@@ -150,6 +165,12 @@ export function Ending({ onPlayAgain }: { onPlayAgain: () => void }) {
       />
       <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(255,226,160,0.35), rgba(255,226,160,0) 55%)', mixBlendMode: 'screen' } as CSSProperties} aria-hidden />
       <Bokeh />
+
+      {/* bridesmaids, groomsmen and guests in their seats */}
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2" style={{ width: bandW, height: bandH }}>
+        <Audience onCheer={cheer} />
+      </div>
+
       <Ambient petals={26} hearts={12} sparkles={18} butterflies={5} seed={88} />
 
       <div className="absolute right-3 z-40" style={{ top: 'max(12px, env(safe-area-inset-top))' }}>
@@ -170,6 +191,7 @@ export function Ending({ onPlayAgain }: { onPlayAgain: () => void }) {
           </button>
         )}
       </div>
+      {bursts}
     </div>
   )
 }

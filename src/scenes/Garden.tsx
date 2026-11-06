@@ -1,16 +1,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { audio } from '../audio'
-import { img, S } from '../assets'
+import { BTS_MEMBERS, btsPose, img, S } from '../assets'
 import { CHEERS, ITEMS, type ItemDef, type ItemId } from '../items'
 import { Ambient } from '../components/Ambient'
 import { HeartShape } from '../components/Decor'
 import { MuteButton } from '../components/MuteButton'
-import { ITEM_SPOTS, OBSTACLES, PROPS, START, WALK_TOP, WH, WW, drawHeart, drawLights, drawStar, renderGround, renderProp } from '../game/world'
+import { BtsConcert } from '../components/BtsConcert'
+import { DPad } from '../components/DPad'
+import { DIRS } from '../game/controls'
+import { KDramaGarden } from '../kdrama/KDramaGarden'
+import { renderKGate } from '../kdrama/kworld'
+import { loadProgress } from '../kdrama/progress'
+import { ITEM_SPOTS, KGATE, OBSTACLES, PROPS, STAGE, START, WALK_TOP, WH, WW, drawHeart, drawLights, drawStar, renderGround, renderProp } from '../game/world'
 
 const BRIDE_H_PX = 262 // native pixel height of bride_idle; all poses share this scale
 const BRIDE_WORLD_H = 132
 const SPEED = 260
 const PICK_RADIUS = 62
+const STAGE_BEAT = 60 / 114 // seconds; the crew on the stage bob to the show's tempo
+const NEAR_STAGE = 170
+const NEAR_GATE = 130
+/** The chapel door, at the top of the path through the arch. With all 8 items, walking here starts the preparation. */
+const CHAPEL = { x: 900, y: 372 }
+const AT_CHAPEL = 64
+
+function onStage(x: number, y: number) {
+  return Math.abs(x - STAGE.x) < STAGE.halfW && y > STAGE.y - STAGE.h && y < STAGE.y + 12
+}
+
+function onGate(x: number, y: number) {
+  return Math.abs(x - KGATE.x) < KGATE.halfW && y > KGATE.y - KGATE.h && y < KGATE.y + 12
+}
+
+// dev helper: ?kdrama opens the K-Drama Garden straight away
+const KDRAMA_FIRST = import.meta.env.DEV && new URLSearchParams(window.location.search).has('kdrama')
+
 const ITEM_H: Record<ItemId, number> = { dress: 74, veil: 62, shoes: 46, bouquet: 64, tiara: 30, rings: 54, earrings: 32, perfume: 58 }
 
 interface Particle {
@@ -32,21 +56,6 @@ interface Flyer {
   to: { x: number; y: number }
 }
 
-const DIRS: Record<string, [number, number]> = {
-  ArrowUp: [0, -1],
-  KeyW: [0, -1],
-  ArrowDown: [0, 1],
-  KeyS: [0, 1],
-  ArrowLeft: [-1, 0],
-  KeyA: [-1, 0],
-  ArrowRight: [1, 0],
-  KeyD: [1, 0],
-  'pad-up': [0, -1],
-  'pad-down': [0, 1],
-  'pad-left': [-1, 0],
-  'pad-right': [1, 0],
-}
-
 export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -54,9 +63,16 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
   const keys = useRef(new Set<string>())
   const [collected, setCollected] = useState<ItemId[]>([])
   const [toast, setToast] = useState<{ item: ItemDef; cheer: string; key: number } | null>(null)
-  const [intro, setIntro] = useState(true)
+  const [intro, setIntro] = useState(!KDRAMA_FIRST)
   const [done, setDone] = useState(false)
+  const [allFound, setAllFound] = useState(false)
+  const [chapelMsg, setChapelMsg] = useState(false)
   const [flyers, setFlyers] = useState<Flyer[]>([])
+  const [concert, setConcert] = useState(false)
+  const [nearStage, setNearStage] = useState(false)
+  const [kdrama, setKdrama] = useState(KDRAMA_FIRST)
+  const [nearGate, setNearGate] = useState(false)
+  const [kdCount, setKdCount] = useState(() => loadProgress().found.length)
   const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches, [])
 
   const game = useRef({
@@ -66,6 +82,8 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     moving: false,
     animT: 0,
     happyUntil: 0,
+    allFound: false,
+    arrived: false,
     dressOn: false,
     target: null as null | { x: number; y: number; born: number },
     cam: { x: 0, y: 0 },
@@ -76,14 +94,44 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     particles: [] as Particle[],
     trailT: 0,
     paused: true,
+    hidden: false,
+    kdCount: 0,
     flash: 0,
   })
 
   const introRef = useRef(intro)
   const doneRef = useRef(done)
+  const nearRef = useRef(nearStage)
+  const concertRef = useRef(concert)
+  const gateRef = useRef(nearGate)
+  const kdramaRef = useRef(kdrama)
+  gateRef.current = nearGate
+  kdramaRef.current = kdrama
+  game.current.kdCount = kdCount
   introRef.current = intro
   doneRef.current = done
-  game.current.paused = intro || done
+  nearRef.current = nearStage
+  concertRef.current = concert
+  game.current.paused = intro || done || concert || kdrama
+  game.current.hidden = kdrama // the K-Drama Garden covers the whole screen, so skip drawing this one
+
+  const openConcert = useCallback(() => {
+    if (concertRef.current) return
+    audio.sfx('pop')
+    keys.current.clear()
+    game.current.target = null
+    setToast(null)
+    setConcert(true)
+  }, [])
+
+  const openKdrama = useCallback(() => {
+    if (kdramaRef.current) return
+    audio.sfx('whoosh')
+    keys.current.clear()
+    game.current.target = null
+    setToast(null)
+    setKdrama(true)
+  }, [])
 
   const spawn = (x: number, y: number, n: number, kinds: Particle['kind'][] = ['star', 'heart']) => {
     const g = game.current
@@ -132,13 +180,36 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     setCollected((c) => (c.includes(id) ? c : [...c, id]))
     setToast({ item: def, cheer: CHEERS[Math.floor(Math.random() * CHEERS.length)], key: Date.now() })
     if (g.remaining.size === 0) {
+      // everything found: now she walks to the chapel to get ready
       window.setTimeout(() => {
         audio.sfx('complete')
         setToast(null)
-        setDone(true)
+        g.allFound = true
+        g.happyUntil = performance.now() + 1500
+        setAllFound(true)
+        setChapelMsg(true)
       }, 1300)
     }
   }, [])
+
+  const reachChapel = useCallback(() => {
+    const g = game.current
+    if (g.arrived) return
+    g.arrived = true
+    g.target = null
+    keys.current.clear()
+    g.happyUntil = performance.now() + 2000
+    spawn(CHAPEL.x, CHAPEL.y - 80, 30, ['heart', 'star'])
+    audio.sfx('chime')
+    setChapelMsg(false)
+    setDone(true)
+  }, [])
+
+  useEffect(() => {
+    if (!chapelMsg) return
+    const t = window.setTimeout(() => setChapelMsg(false), 5000)
+    return () => window.clearTimeout(t)
+  }, [chapelMsg])
 
   // toast auto-hide
   useEffect(() => {
@@ -158,9 +229,14 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
         if ((e.target as HTMLElement)?.tagName === 'BUTTON') return // let the focused button handle it
         e.preventDefault()
+        if (concertRef.current || kdramaRef.current) return
         if (introRef.current) {
           audio.sfx('click')
           setIntro(false)
+        } else if (nearRef.current && !doneRef.current) {
+          openConcert()
+        } else if (gateRef.current && !doneRef.current) {
+          openKdrama()
         } else if (doneRef.current) {
           audio.sfx('click')
           onComplete(ITEMS.map((i) => i.id))
@@ -177,7 +253,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [onComplete])
+  }, [onComplete, openConcert, openKdrama])
 
   // main loop
   useEffect(() => {
@@ -186,6 +262,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     const ctx = canvas.getContext('2d')!
     const g = game.current
     let ground: HTMLCanvasElement | null = null
+    let gate: ReturnType<typeof renderKGate> | null = null
     let res = 0
     let raf = 0
     let last = performance.now()
@@ -194,6 +271,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
       const cw = wrap.clientWidth
       const ch = wrap.clientHeight
+      if (!cw || !ch) return // hidden (e.g. a background tab); the ResizeObserver calls again once visible
       g.cw = cw
       g.ch = ch
       canvas.width = Math.round(cw * dpr)
@@ -208,6 +286,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
         res = want
         ground = renderGround(res)
         PROPS.forEach((p) => renderProp(p, res))
+        gate = renderKGate(res)
       }
       snapCam()
     }
@@ -228,6 +307,11 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       g.cam.y = cy
     }
     resize()
+    // the stage sign uses the script font; redraw the props once it has loaded
+    document.fonts?.load('700 17px "Dancing Script"').then(() => {
+      ground = null
+      resize()
+    })
     if (import.meta.env.DEV) (window as unknown as { __garden: unknown }).__garden = g
     const ro = new ResizeObserver(resize)
     ro.observe(wrap)
@@ -300,6 +384,19 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
           }
         }
       }
+      // close enough to the stage to offer the show?
+      const near = !g.paused && Math.hypot(g.x - STAGE.x, (g.y - STAGE.y) * 1.3) < NEAR_STAGE
+      if (near !== nearRef.current) {
+        nearRef.current = near
+        setNearStage(near)
+      }
+      const atGate = !g.paused && Math.hypot(g.x - KGATE.x, (g.y - KGATE.y) * 1.3) < NEAR_GATE
+      if (atGate !== gateRef.current) {
+        gateRef.current = atGate
+        setNearGate(atGate)
+      }
+      // all items found and she has reached the chapel door
+      if (g.allFound && !g.arrived && !g.paused && Math.hypot(g.x - CHAPEL.x, (g.y - CHAPEL.y) * 1.3) < AT_CHAPEL) reachChapel()
       // camera
       const { cx, cy } = camTarget()
       const k = 1 - Math.pow(0.0015, dt)
@@ -383,10 +480,114 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       }
     }
 
+    // the seven members waiting on the stage, bopping to the beat
+    const drawStageCrew = (t: number) => {
+      const b = t / STAGE_BEAT
+      const pose = Math.floor(b / 2) % 2
+      BTS_MEMBERS.forEach((m, i) => {
+        const { sprite, mirror } = btsPose(m.id, pose)
+        const im = img(sprite)
+        if (!im) return
+        const h = 64
+        const w = (im.width / im.height) * h
+        const x = STAGE.x - 108 + i * 36
+        const y = STAGE.deckY - 2 + (i % 2) * 6
+        const bob = -Math.abs(Math.sin(Math.PI * (b + i * 0.15))) * 5
+        ctx.save()
+        ctx.translate(x, y + bob)
+        if (mirror) ctx.scale(-1, 1)
+        ctx.drawImage(im, -w / 2, -h, w, h)
+        ctx.restore()
+      })
+    }
+
+    const drawStageBubble = (t: number) => {
+      if (g.paused) return
+      const y = STAGE.y - STAGE.h - 18 + Math.sin(t * 3) * 5
+      const label = 'Tap the stage \u266A'
+      ctx.font = '700 17px Quicksand, ui-rounded, sans-serif'
+      const w = ctx.measureText(label).width + 30
+      ctx.fillStyle = '#fff'
+      ctx.strokeStyle = '#a383e6'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.roundRect(STAGE.x - w / 2, y - 18, w, 34, 17)
+      ctx.moveTo(STAGE.x - 8, y + 16)
+      ctx.lineTo(STAGE.x, y + 26)
+      ctx.lineTo(STAGE.x + 8, y + 16)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#6d4fb4'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, STAGE.x, y)
+    }
+
+    const drawGateBubble = (t: number) => {
+      if (g.paused) return
+      const y = KGATE.y - KGATE.h - 34 + Math.sin(t * 3 + 1) * 5
+      const label = `K-Drama Garden \u2661 ${g.kdCount}/8`
+      ctx.font = '700 16px Quicksand, ui-rounded, sans-serif'
+      const w = ctx.measureText(label).width + 28
+      const x = Math.min(KGATE.x, WW - w / 2 - 8)
+      ctx.fillStyle = '#fff'
+      ctx.strokeStyle = '#a383e6'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.roundRect(x - w / 2, y - 17, w, 32, 16)
+      ctx.moveTo(KGATE.x - 8, y + 15)
+      ctx.lineTo(KGATE.x, y + 25)
+      ctx.lineTo(KGATE.x + 8, y + 15)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#6d4fb4'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, x, y)
+    }
+
+    // once everything is found: the chapel door glows and calls her over
+    const drawChapelCall = (t: number) => {
+      const dx = CHAPEL.x
+      const dy = 272
+      const pulse = 0.75 + 0.25 * Math.sin(t * 3)
+      const gr = ctx.createRadialGradient(dx, dy, 0, dx, dy, 90)
+      gr.addColorStop(0, `rgba(255,246,205,${0.9 * pulse})`)
+      gr.addColorStop(0.5, `rgba(255,214,226,${0.45 * pulse})`)
+      gr.addColorStop(1, 'rgba(255,214,226,0)')
+      ctx.fillStyle = gr
+      ctx.beginPath()
+      ctx.arc(dx, dy, 90, 0, Math.PI * 2)
+      ctx.fill()
+      for (let i = 0; i < 5; i++) {
+        const a = t * 1.4 + (i * Math.PI * 2) / 5
+        drawStar(ctx, dx + Math.cos(a) * 62, dy + Math.sin(a) * 34, 4 + 2.5 * Math.sin(t * 5 + i), i % 2 ? '#fff' : '#ffe08a')
+      }
+      if (g.paused) return
+      const y = 196 + Math.sin(t * 3) * 5
+      const label = 'Get ready here \u2661'
+      ctx.font = '700 17px Quicksand, ui-rounded, sans-serif'
+      const w = ctx.measureText(label).width + 30
+      ctx.fillStyle = '#fff'
+      ctx.strokeStyle = '#ec6a90'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.roundRect(dx - w / 2, y - 18, w, 34, 17)
+      ctx.moveTo(dx - 8, y + 16)
+      ctx.lineTo(dx, y + 26)
+      ctx.lineTo(dx + 8, y + 16)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#d64d77'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, dx, y)
+    }
+
     const drawPointer = (t: number) => {
-      // gentle hint toward the nearest item that is off screen
-      if (g.paused || g.remaining.size === 0) return
-      let best: [number, number] | null = null
+      // gentle hint toward the nearest item that is off screen (or the chapel, once all are found)
+      if (g.paused) return
+      let best: [number, number] | null = g.allFound ? [CHAPEL.x, CHAPEL.y - 90] : null
       let bd = Infinity
       for (const id of g.remaining) {
         const [ix, iy] = ITEM_SPOTS[id]
@@ -433,6 +634,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     }
 
     const draw = (t: number, now: number) => {
+      if (!g.cw || !ground || g.hidden) return
       const dpr = canvas.width / g.cw
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.imageSmoothingEnabled = true
@@ -461,11 +663,19 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
         list.push({ y: p.y, draw: () => ctx.drawImage(c, p.x + p.ox!, p.y + p.oy!, c.width / res, c.height / res) })
       }
       for (const id of g.remaining) list.push({ y: ITEM_SPOTS[id][1], draw: () => drawItem(id, t) })
+      list.push({ y: STAGE.y + 0.5, draw: () => drawStageCrew(t) })
+      if (gate) {
+        const gc = gate
+        list.push({ y: KGATE.y, draw: () => ctx.drawImage(gc.canvas, KGATE.x + gc.ox, KGATE.y + gc.oy, gc.canvas.width / res, gc.canvas.height / res) })
+      }
       list.push({ y: g.y, draw: () => drawBride(t, now) })
       list.sort((a, b) => a.y - b.y)
       list.forEach((d) => d.draw())
 
       drawLights(ctx, t)
+      drawStageBubble(t)
+      drawGateBubble(t)
+      if (g.allFound) drawChapelCall(t)
       for (const p of g.particles) {
         const a = 1 - p.life / p.max
         ctx.globalAlpha = a
@@ -489,7 +699,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       cancelAnimationFrame(raf)
       ro.disconnect()
     }
-  }, [collect, isTouch])
+  }, [collect, isTouch, reachChapel])
 
   // tap / click to move
   const pointerDown = useRef(false)
@@ -509,17 +719,6 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     }
   }
 
-  const pad = (dir: string) => ({
-    onPointerDown: (e: React.PointerEvent) => {
-      e.preventDefault()
-      capture(e)
-      keys.current.add(dir)
-    },
-    onPointerUp: () => keys.current.delete(dir),
-    onPointerCancel: () => keys.current.delete(dir),
-    onLostPointerCapture: () => keys.current.delete(dir),
-  })
-
   return (
     <div ref={wrapRef} className="absolute inset-0 overflow-hidden bg-sage-200">
       <canvas
@@ -528,6 +727,16 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
         aria-label="Garden. Move the bride to collect the wedding items."
         onPointerDown={(e) => {
           if (game.current.paused) return
+          const g = game.current
+          const r = e.currentTarget.getBoundingClientRect()
+          if (onStage((e.clientX - r.left) / g.scale + g.cam.x, (e.clientY - r.top) / g.scale + g.cam.y)) {
+            openConcert()
+            return
+          }
+          if (onGate((e.clientX - r.left) / g.scale + g.cam.x, (e.clientY - r.top) / g.scale + g.cam.y)) {
+            openKdrama()
+            return
+          }
           pointerDown.current = true
           capture(e)
           setTargetFromEvent(e)
@@ -543,7 +752,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       {/* top HUD */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-center px-3" style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}>
         <div className="soft-card flex flex-col items-center gap-1 px-4 py-2" role="status" aria-live="polite">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-blush-600 sm:text-xs">Find the wedding treasures · {collected.length}/8</div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-blush-600 sm:text-xs">{allFound ? 'All found! Walk to the chapel to get ready' : `Find the wedding treasures · ${collected.length}/8`}</div>
           <div className="flex gap-[3px] sm:gap-1">
             {ITEMS.map((it, i) => {
               const got = i < collected.length
@@ -559,6 +768,19 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       <div className="absolute right-3 top-3 z-40" style={{ top: 'max(12px, env(safe-area-inset-top))' }}>
         <MuteButton />
       </div>
+
+      {/* all found: off to the chapel */}
+      {chapelMsg && !done && (
+        <div className="pointer-events-none absolute inset-x-0 top-[86px] z-10 flex justify-center px-3 sm:top-[96px]">
+          <div className="soft-card anim-rise flex max-w-[92vw] items-center gap-3 py-2 pl-2 pr-5">
+            <img src={S('face_1')} alt="" className="h-12 w-12 rounded-full bg-blush-100 object-cover sm:h-14 sm:w-14" />
+            <div className="leading-tight">
+              <div className="text-sm font-bold text-blush-600 sm:text-base">All 8 treasures found! 💖</div>
+              <div className="text-xs text-dusty-800 sm:text-sm">I have everything. Let’s go to the chapel to get ready!</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* toast */}
       {toast && (
@@ -601,23 +823,42 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       </div>
 
       {/* d-pad for touch screens (tap-to-move works too) */}
-      {isTouch && !intro && !done && (
-        <div className="absolute left-3 grid grid-cols-3 grid-rows-3 gap-1 opacity-90" style={{ bottom: 'calc(max(10px, env(safe-area-inset-bottom)) + 62px)' }}>
-          {(
-            [
-              ['pad-up', 'col-start-2 row-start-1', 0],
-              ['pad-left', 'col-start-1 row-start-2', -90],
-              ['pad-right', 'col-start-3 row-start-2', 90],
-              ['pad-down', 'col-start-2 row-start-3', 180],
-            ] as const
-          ).map(([dir, pos, rot]) => (
-            <button key={dir} type="button" aria-label={dir.replace('pad-', 'Move ')} className={`round-btn !h-11 !w-11 touch-none ${pos}`} {...pad(dir)}>
-              <svg viewBox="0 0 24 24" width={20} height={20} style={{ transform: `rotate(${rot}deg)` }} aria-hidden>
-                <path d="M12 5l7 9H5z" fill="#ec6a90" />
+      {isTouch && !intro && !done && <DPad keys={keys} style={{ bottom: 'calc(max(10px, env(safe-area-inset-bottom)) + 62px)' }} />}
+
+      {/* walk up to the stage and the show button appears */}
+      {nearStage && !concert && !intro && !done && (
+        <div className="absolute inset-x-0 flex justify-center" style={{ bottom: 'calc(max(10px, env(safe-area-inset-bottom)) + 74px)' }}>
+          <button type="button" className="pill-btn anim-pop text-sm sm:text-base" style={{ background: 'linear-gradient(180deg, #c9a7ff 0%, #9b72e8 55%, #7d55d6 100%)', boxShadow: '0 6px 0 #5f3fb0, 0 12px 24px rgba(95,63,176,0.35)' }} onClick={openConcert}>
+            Watch BTS perform
+            <span className="play-dot">
+              <svg viewBox="0 0 24 24" width={14} height={14} aria-hidden>
+                <path d="M8 5l11 7-11 7z" fill="#7d55d6" />
               </svg>
-            </button>
-          ))}
+            </span>
+          </button>
         </div>
+      )}
+
+      {/* walk up to the gate and the K-Drama Garden button appears */}
+      {nearGate && !kdrama && !intro && !done && (
+        <div className="absolute inset-x-0 flex justify-center" style={{ bottom: 'calc(max(10px, env(safe-area-inset-bottom)) + 74px)' }}>
+          <button type="button" className="pill-btn anim-pop text-sm sm:text-base" style={{ background: 'linear-gradient(180deg, #c9a7ff 0%, #9b72e8 55%, #7d55d6 100%)', boxShadow: '0 6px 0 #5f3fb0, 0 12px 24px rgba(95,63,176,0.35)' }} onClick={openKdrama}>
+            Visit the K-Drama Garden
+            <span className="play-dot">🎬</span>
+          </button>
+        </div>
+      )}
+
+      {concert && <BtsConcert onClose={() => setConcert(false)} />}
+      {kdrama && (
+        <KDramaGarden
+          dressOn={game.current.dressOn}
+          onClose={() => {
+            audio.sfx('whoosh')
+            setKdrama(false)
+            setKdCount(loadProgress().found.length)
+          }}
+        />
       )}
 
       {/* flying icons */}
@@ -632,7 +873,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
             <img src={S('face_1')} alt="" className="h-16 w-16 shrink-0 rounded-full bg-blush-100 object-cover sm:h-20 sm:w-20" />
             <div className="flex-1">
               <p className="text-[15px] font-bold leading-snug text-dusty-800 sm:text-base">
-                Oh no! My wedding things are scattered all over the garden. Help me find all 8 treasures before the ceremony!
+                Oh no! My wedding things are scattered all over the garden. Help me find all 8 treasures before the ceremony! Psst… there’s a surprise on the stage, and K-drama stars are waiting past the gate! 💜
               </p>
               <p className="mt-1 text-xs text-dusty-600 sm:text-sm">
                 {isTouch ? 'Tap where you want to go, or use the arrows.' : 'Move with arrow keys / WASD, or click where you want to go.'}
@@ -662,13 +903,13 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
           <Ambient petals={0} hearts={12} sparkles={14} seed={77} />
           <div className="soft-card anim-pop relative flex w-full max-w-md flex-col items-center gap-3 p-6 text-center">
             <img src={S('bride_excited')} alt="" className="anim-bob h-36 object-contain sm:h-44" />
-            <h2 className="font-script text-4xl font-bold text-blush-600">All 8 treasures found!</h2>
+            <h2 className="font-script text-4xl font-bold text-blush-600">We made it to the chapel!</h2>
             <div className="grid grid-cols-8 gap-1">
               {ITEMS.map((it) => (
                 <img key={it.id} src={S(it.sprite)} alt={it.name} className="h-8 w-8 object-contain" />
               ))}
             </div>
-            <p className="text-sm text-dusty-800">Everything’s here. Time to get ready!</p>
+            <p className="text-sm text-dusty-800">All 8 treasures are here. Time to get ready!</p>
             <button
               type="button"
               autoFocus

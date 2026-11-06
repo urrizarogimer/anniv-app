@@ -1,7 +1,7 @@
 // All music and sound effects are synthesized with WebAudio, so the game needs no audio files.
 
-export type Track = 'opening' | 'garden' | 'ceremony' | 'ending'
-export type Sfx = 'click' | 'pickup' | 'sparkle' | 'complete' | 'whoosh' | 'pop' | 'chime' | 'kiss'
+export type Track = 'opening' | 'garden' | 'ceremony' | 'ending' | 'concert' | 'kdrama'
+export type Sfx = 'click' | 'pickup' | 'sparkle' | 'complete' | 'whoosh' | 'pop' | 'chime' | 'kiss' | 'sting' | 'oops' | 'chest' | 'fanfare'
 
 type Note = [beat: number, midi: number, len: number, vel?: number]
 interface Bar {
@@ -12,7 +12,7 @@ interface TrackDef {
   bpm: number
   beatsPerBar: number
   bars: Bar[]
-  arp: 'waltz' | 'flow' | 'harp'
+  arp: 'waltz' | 'flow' | 'harp' | 'disco'
   intro?: Bar[]
 }
 
@@ -97,6 +97,43 @@ const TRACKS: Record<Track, TrackDef> = {
       { chord: Fmaj, melody: [[0, A5, 2], [2, C6, 2]] },
       { chord: Gm, melody: [[0, Bb4 + 12, 1.5], [1.5, A5, 0.5], [2, G5, 2]] },
       { chord: Cmaj, melody: [[0, E5, 1], [1, G5, 1], [2, C6, 2]] },
+    ],
+  },
+  // K-Drama Garden: an original slow piano ballad in the style of a drama soundtrack (I-V-vi-IV).
+  kdrama: {
+    bpm: 72,
+    beatsPerBar: 4,
+    arp: 'flow',
+    bars: [
+      { chord: Cmaj, melody: [[0, E5, 1.5], [1.5, D5, 0.5], [2, E5, 1], [3, G5, 1]] },
+      { chord: Gmaj, melody: [[0, D5, 2], [2, B4, 1], [3, D5, 1]] },
+      { chord: Am, melody: [[0, C5, 1.5], [1.5, B4, 0.5], [2, C5, 1], [3, E5, 1]] },
+      { chord: Fmaj2, melody: [[0, A4, 3], [3, C5, 1]] },
+      { chord: Cmaj, melody: [[0, E5, 1], [1, G5, 1], [2, C6, 1.5], [3.5, B5, 0.5]] },
+      { chord: Gmaj, melody: [[0, A5, 1], [1, G5, 1], [2, D5, 2]] },
+      { chord: Fmaj2, melody: [[0, F5, 1], [1, E5, 1], [2, D5, 1], [3, C5, 1]] },
+      { chord: Gmaj, melody: [[0, D5, 3], [3, G4, 1]] },
+    ],
+  },
+  // Garden stage show: an original upbeat disco-funk groove at 114 BPM (not a copy of any song).
+  // Four-on-the-floor drums, octave-bouncing bass, offbeat chord stabs and a bright lead hook.
+  concert: {
+    bpm: 114,
+    beatsPerBar: 4,
+    arp: 'disco',
+    intro: [
+      { chord: [53, 57, 60, 64], melody: [] },
+      { chord: [53, 57, 60, 64], melody: [[2, C5, 0.5, 0.35], [2.5, D5, 0.5, 0.4], [3, F5, 0.5, 0.45], [3.5, G5, 0.5, 0.5]] },
+    ],
+    bars: [
+      { chord: [53, 57, 60, 64], melody: [[0, A5, 0.5], [0.5, A5, 0.5], [1, G5, 0.5], [1.5, A5, 1], [2.5, C6, 0.5], [3, A5, 0.5], [3.5, G5, 0.5]] },
+      { chord: [45, 48, 52, 55], melody: [[0, E5, 1], [1, G5, 0.5], [1.5, E5, 0.5], [2, C5, 1], [3, D5, 0.5], [3.5, E5, 0.5]] },
+      { chord: [46, 50, 53, 57], melody: [[0, F5, 0.5], [0.5, F5, 0.5], [1, D5, 0.5], [1.5, F5, 1], [2.5, A5, 0.5], [3, Bb4 + 12, 0.5], [3.5, A5, 0.5]] },
+      { chord: [48, 52, 55, 58], melody: [[0, G5, 1.5], [1.5, E5, 0.5], [2, C5, 0.5], [2.5, E5, 0.5], [3, G5, 1]] },
+      { chord: [53, 57, 60, 64], melody: [[0, A5, 0.5], [0.5, C6, 0.5], [1, A5, 0.5], [1.5, G5, 0.5], [2, F5, 1], [3, G5, 0.5], [3.5, A5, 0.5]] },
+      { chord: [45, 48, 52, 55], melody: [[0, G5, 0.5], [0.5, E5, 0.5], [1, C5, 1], [2, E5, 0.5], [2.5, G5, 0.5], [3, C6, 1]] },
+      { chord: [46, 50, 53, 57], melody: [[0, D6, 0.5], [0.5, C6, 0.5], [1, A5, 0.5], [1.5, F5, 1], [2.5, G5, 0.5], [3, A5, 0.5], [3.5, Bb4 + 12, 0.5]] },
+      { chord: [48, 52, 55, 58], melody: [[0, C6, 1], [1, G5, 0.5], [1.5, C6, 0.5], [2, E5 + 12, 1.5, 0.6]] },
     ],
   },
 }
@@ -265,6 +302,156 @@ class AudioEngine {
     }
   }
 
+  // ---------- dance-pop kit (concert track) ----------
+  private noiseBuf: AudioBuffer | null = null
+  private noise() {
+    const ctx = this.ctx!
+    if (!this.noiseBuf) {
+      const len = ctx.sampleRate
+      this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate)
+      const d = this.noiseBuf.getChannelData(0)
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+    }
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuf
+    return src
+  }
+
+  private kick(t: number) {
+    const ctx = this.ctx!
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(150, t)
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(0.95, t + 0.004)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.32)
+    o.connect(g).connect(this.musicBus)
+    o.start(t)
+    o.stop(t + 0.35)
+  }
+
+  private clap(t: number, vol = 0.5) {
+    const ctx = this.ctx!
+    const src = this.noise()
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 1700
+    bp.Q.value = 0.9
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    // a few quick hits make it sound like hands rather than a single snap
+    for (const d of [0, 0.012, 0.024]) {
+      g.gain.linearRampToValueAtTime(vol, t + d + 0.002)
+      g.gain.linearRampToValueAtTime(vol * 0.35, t + d + 0.01)
+    }
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22)
+    src.connect(bp).connect(g)
+    g.connect(this.musicBus)
+    g.connect(this.reverbSend)
+    src.start(t, Math.random() * 0.5)
+    src.stop(t + 0.25)
+  }
+
+  private hat(t: number, open = false, vol = 0.16) {
+    const ctx = this.ctx!
+    const src = this.noise()
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 7500
+    const g = ctx.createGain()
+    const len = open ? 0.18 : 0.045
+    g.gain.setValueAtTime(vol, t)
+    g.gain.exponentialRampToValueAtTime(0.001, t + len)
+    src.connect(hp).connect(g).connect(this.musicBus)
+    src.start(t, Math.random() * 0.5)
+    src.stop(t + len + 0.02)
+  }
+
+  private bass(midi: number, t: number, len: number) {
+    const ctx = this.ctx!
+    const o = ctx.createOscillator()
+    o.type = 'sawtooth'
+    o.frequency.value = mtof(midi)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.Q.value = 6
+    lp.frequency.setValueAtTime(1400, t)
+    lp.frequency.exponentialRampToValueAtTime(260, t + 0.16)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(0.42, t + 0.006)
+    g.gain.setValueAtTime(0.32, t + len * 0.7)
+    g.gain.exponentialRampToValueAtTime(0.001, t + len)
+    o.connect(lp).connect(g).connect(this.musicBus)
+    o.start(t)
+    o.stop(t + len + 0.02)
+  }
+
+  private stab(chord: number[], t: number, vol = 0.07) {
+    const ctx = this.ctx!
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(4200, t)
+    lp.frequency.exponentialRampToValueAtTime(900, t + 0.18)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(vol, t + 0.01)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.24)
+    lp.connect(g)
+    g.connect(this.musicBus)
+    g.connect(this.reverbSend)
+    for (const m of chord) {
+      for (const det of [-9, 9]) {
+        const o = ctx.createOscillator()
+        o.type = 'sawtooth'
+        o.frequency.value = mtof(m + 12)
+        o.detune.value = det
+        o.connect(lp)
+        o.start(t)
+        o.stop(t + 0.26)
+      }
+    }
+  }
+
+  private lead(midi: number, t: number, len: number, vel = 0.5) {
+    const ctx = this.ctx!
+    const f = mtof(midi)
+    const g = ctx.createGain()
+    const end = t + Math.max(0.12, len * 0.92)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(vel * 0.16, t + 0.012)
+    g.gain.setValueAtTime(vel * 0.13, end - 0.04)
+    g.gain.exponentialRampToValueAtTime(0.001, end + 0.08)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = f * 5
+    lp.connect(g)
+    g.connect(this.musicBus)
+    g.connect(this.reverbSend)
+    // square + slightly detuned saw with a little vibrato: a bright synth "voice"
+    const vib = ctx.createOscillator()
+    vib.frequency.value = 5.5
+    const vibAmt = ctx.createGain()
+    vibAmt.gain.value = f * 0.006
+    vib.connect(vibAmt)
+    for (const [type, det, lvl] of [['square', 0, 0.6], ['sawtooth', 7, 0.5]] as const) {
+      const o = ctx.createOscillator()
+      o.type = type
+      o.frequency.value = f
+      o.detune.value = det
+      vibAmt.connect(o.frequency)
+      const og = ctx.createGain()
+      og.gain.value = lvl
+      o.connect(og).connect(lp)
+      o.start(t)
+      o.stop(end + 0.1)
+    }
+    vib.start(t)
+    vib.stop(end + 0.1)
+  }
+
   // ---------- music scheduler ----------
   playMusic(track: Track) {
     if (!this.ctx) return
@@ -316,6 +503,29 @@ class AudioEngine {
     } else if (def.arp === 'flow') {
       const seq = [r, fifth, third + 12, fifth, r + 12, fifth, third + 12, fifth]
       seq.forEach((m, i) => this.pluck(m, t0 + i * beat * 0.5, i % 2 === 0 ? 0.32 : 0.2))
+    } else if (def.arp === 'disco') {
+      const intro = this.inIntro
+      for (let b = 0; b < 4; b++) {
+        const tb = t0 + b * beat
+        this.kick(tb)
+        if (!intro && (b === 1 || b === 3)) this.clap(tb)
+        this.hat(tb + beat * 0.5, true, intro ? 0.08 : 0.14)
+        this.hat(tb, false, 0.07)
+        if (!intro) this.hat(tb + beat * 0.25, false, 0.05)
+        // octave-bouncing disco bass
+        this.bass(r - 12, tb, beat * 0.45)
+        this.bass(r, tb + beat * 0.5, beat * 0.4)
+        if (!intro && b % 2 === 1) this.stab(bar.chord, tb + beat * 0.5)
+      }
+      if (intro) this.stab(bar.chord, t0 + beat * 3.5, 0.05)
+      for (const [b, m, len, vel] of bar.melody) this.lead(m, t0 + b * beat, len * beat, vel ?? 0.5)
+      this.nextBarTime += barDur
+      this.barIndex++
+      if (this.inIntro && def.intro && this.barIndex >= def.intro.length) {
+        this.inIntro = false
+        this.barIndex = 0
+      }
+      return
     } else {
       const seq = [r, fifth, r + 12, third + 12, fifth + 12, third + 12, r + 12, fifth]
       seq.forEach((m, i) => this.pluck(m, t0 + i * beat * 0.5, 0.26))
@@ -379,6 +589,26 @@ class AudioEngine {
       case 'complete':
         ;[C5, E5, G5, C6, E5 + 12, G5 + 12].forEach((m, i) => bell(m, t + i * 0.1, 0.45))
         this.pad([60, 64, 67], t + 0.5, 1.6, 0.12)
+        break
+      case 'sting':
+        // a soft "dun… dun" reveal, then a shimmer
+        this.pad([45, 52, 57], t, 1.6, 0.14)
+        blip(110, 104, 0.5, 'triangle', 0.3)
+        blip(98, 92, 0.7, 'triangle', 0.3, t + 0.45)
+        ;[A5, E5 + 12, A5 + 12].forEach((m, i) => bell(m, t + 0.9 + i * 0.09, 0.25))
+        break
+      case 'oops':
+        blip(660, 520, 0.18, 'triangle', 0.24)
+        blip(500, 330, 0.34, 'triangle', 0.24, t + 0.2)
+        break
+      case 'chest':
+        blip(180, 320, 0.35, 'sawtooth', 0.05)
+        ;[C6, E5 + 12, G5 + 12, C6 + 12, E5 + 24].forEach((m, i) => bell(m, t + 0.3 + i * 0.07, 0.35))
+        break
+      case 'fanfare':
+        ;[G5, C6, E5 + 12, G5 + 12].forEach((m, i) => bell(m, t + i * 0.12, 0.45))
+        ;[C6, E5 + 12, G5 + 12, C6 + 12].forEach((m) => bell(m, t + 0.6, 0.3))
+        this.pad([60, 64, 67, 72], t + 0.55, 2, 0.12)
         break
       case 'whoosh': {
         const len = Math.floor(ctx.sampleRate * 0.7)

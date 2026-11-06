@@ -1,4 +1,4 @@
-# Make a "casual" bride: tint the ivory gown to a soft pink sundress, below the neckline.
+# Make a "casual" bride for the garden: tint the ivory gown to a dusty blue sundress, below the neckline.
 import sys, os
 from PIL import Image
 import numpy as np, colorsys
@@ -17,7 +17,7 @@ for n in names:
     # also the bodice and shading greys
     gown |= (mx>0.55)&(sat<0.12)&(ys>h*0.47)&(a[...,3]>10)
     lum = rgb.mean(axis=2)
-    target = np.array([0.98,0.72,0.80])  # blush pink
+    target = np.array([0.69,0.76,0.84])  # dusty blue
     shade = np.clip((lum-0.45)/0.55,0,1)[...,None]
     newc = target*(0.62+0.38*shade)
     out = rgb.copy(); out[gown] = newc[gown]
