@@ -1,6 +1,6 @@
 // All music and sound effects are synthesized with WebAudio, so the game needs no audio files.
 
-export type Track = 'opening' | 'garden' | 'ceremony' | 'ending' | 'concert' | 'kdrama'
+export type Track = 'opening' | 'garden' | 'ceremony' | 'ending' | 'concert' | 'kdrama' | 'mcrgrounds' | 'mcr'
 export type Sfx = 'click' | 'pickup' | 'sparkle' | 'complete' | 'whoosh' | 'pop' | 'chime' | 'kiss' | 'sting' | 'oops' | 'chest' | 'fanfare'
 
 type Note = [beat: number, midi: number, len: number, vel?: number]
@@ -12,7 +12,7 @@ interface TrackDef {
   bpm: number
   beatsPerBar: number
   bars: Bar[]
-  arp: 'waltz' | 'flow' | 'harp' | 'disco'
+  arp: 'waltz' | 'flow' | 'harp' | 'disco' | 'rock'
   intro?: Bar[]
 }
 
@@ -28,7 +28,7 @@ const Fmaj = [53, 57, 60], Cmaj = [48, 52, 55], Dm = [50, 53, 57], Bb = [46, 50,
 const Dmaj = [50, 54, 57], Amaj = [45, 49, 52], Bm = [47, 50, 54], Fsm = [42, 45, 49], Gmaj = [43, 47, 50], Gmaj2 = [55, 59, 62]
 const Cmaj2 = [48, 52, 55], Fmaj2 = [53, 57, 60], Am2 = [57, 60, 64]
 
-const TRACKS: Record<Track, TrackDef> = {
+const TRACKS: Record<Exclude<Track, 'mcrgrounds' | 'mcr'>, TrackDef> = {
   // Soft, hopeful music-box waltz
   opening: {
     bpm: 84,
@@ -134,6 +134,49 @@ const TRACKS: Record<Track, TrackDef> = {
       { chord: [45, 48, 52, 55], melody: [[0, G5, 0.5], [0.5, E5, 0.5], [1, C5, 1], [2, E5, 0.5], [2.5, G5, 0.5], [3, C6, 1]] },
       { chord: [46, 50, 53, 57], melody: [[0, D6, 0.5], [0.5, C6, 0.5], [1, A5, 0.5], [1.5, F5, 1], [2.5, G5, 0.5], [3, A5, 0.5], [3.5, Bb4 + 12, 0.5]] },
       { chord: [48, 52, 55, 58], melody: [[0, C6, 1], [1, G5, 0.5], [1.5, C6, 0.5], [2, E5 + 12, 1.5, 0.6]] },
+    ],
+  },
+}
+
+
+// MCR Concert Grounds and stage show: original music in D minor, written for this game (not a copy of any song).
+const D4 = 62, F4 = 65, A3 = 57, C4 = 60, E4 = 64, Bb3 = 58
+const MCR_TRACKS: Pick<Record<Track, TrackDef>, 'mcrgrounds' | 'mcr'> = {
+  // night at the festival: a slow, moody minor plucked loop (i-VI-III-VII)
+  mcrgrounds: {
+    bpm: 84,
+    beatsPerBar: 4,
+    arp: 'flow',
+    bars: [
+      { chord: [50, 53, 57], melody: [[0, A4, 1.5], [1.5, F4 + 12, 0.5], [2, E5, 1], [3, D5, 1]] },
+      { chord: [46, 50, 53], melody: [[0, D5, 2], [2, F5, 1], [3, E5, 1]] },
+      { chord: [53, 57, 60], melody: [[0, C5, 1.5], [1.5, D5, 0.5], [2, F5, 1], [3, A5, 1]] },
+      { chord: [48, 52, 55], melody: [[0, G5, 2], [2, E5, 1], [3, C5, 1]] },
+      { chord: [50, 53, 57], melody: [[0, D5, 1], [1, F5, 1], [2, A5, 1.5], [3.5, G5, 0.5]] },
+      { chord: [46, 50, 53], melody: [[0, F5, 2], [2, D5, 1], [3, Bb4, 1]] },
+      { chord: [45, 49, 52], melody: [[0, Cs5, 1.5], [1.5, E5, 0.5], [2, A5, 2]] },
+      { chord: [50, 53, 57], melody: [[0, D5, 3], [3, A4, 1]] },
+    ],
+  },
+  // stage show: a driving emo-rock march at 104 BPM. Kick and snare, palm-muted power chords,
+  // eighth-note bass and a soaring lead line.
+  mcr: {
+    bpm: 104,
+    beatsPerBar: 4,
+    arp: 'rock',
+    intro: [
+      { chord: [D4 - 12, A3, D4], melody: [] },
+      { chord: [Bb3 - 12, F4 - 12, Bb3], melody: [[2, A4, 0.5, 0.4], [2.5, C5, 0.5, 0.45], [3, D5, 1, 0.5]] },
+    ],
+    bars: [
+      { chord: [D4 - 12, A3, D4], melody: [[0, F5, 1], [1, E5, 0.5], [1.5, D5, 0.5], [2, A5, 1.5], [3.5, G5, 0.5]] },
+      { chord: [Bb3 - 12, F4 - 12, Bb3], melody: [[0, F5, 1], [1, D5, 1], [2, Bb4, 1], [3, C5, 1]] },
+      { chord: [F4 - 12, C4, F4], melody: [[0, C5, 0.5], [0.5, D5, 0.5], [1, F5, 1], [2, A5, 1], [3, C6, 1]] },
+      { chord: [C4 - 12, G4 - 12, C4], melody: [[0, Bb4 + 12, 1.5], [1.5, A5, 0.5], [2, G5, 2]] },
+      { chord: [D4 - 12, A3, D4], melody: [[0, A5, 0.5], [0.5, A5, 0.5], [1, G5, 0.5], [1.5, F5, 0.5], [2, E5, 1], [3, D5, 1]] },
+      { chord: [Bb3 - 12, F4 - 12, Bb3], melody: [[0, D5, 1], [1, F5, 1], [2, Bb4 + 12, 1.5], [3.5, A5, 0.5]] },
+      { chord: [A3 - 12, E4 - 12, A3], melody: [[0, A5, 1], [1, G5, 1], [2, E5, 1], [3, Cs5, 1]] },
+      { chord: [D4 - 12, A3, D4], melody: [[0, D5, 2.5, 0.6], [3, A4, 1, 0.4]] },
     ],
   },
 }
@@ -452,13 +495,77 @@ class AudioEngine {
     vib.stop(end + 0.1)
   }
 
+  // ---------- rock kit (MCR stage show) ----------
+  private snare(t: number, vol = 0.5) {
+    const ctx = this.ctx!
+    const src = this.noise()
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 2200
+    bp.Q.value = 0.7
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(vol, t)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2)
+    src.connect(bp).connect(g)
+    g.connect(this.musicBus)
+    g.connect(this.reverbSend)
+    src.start(t, Math.random() * 0.5)
+    src.stop(t + 0.22)
+    // the drum's body
+    const o = ctx.createOscillator()
+    const og = ctx.createGain()
+    o.type = 'triangle'
+    o.frequency.setValueAtTime(200, t)
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.08)
+    og.gain.setValueAtTime(vol * 0.6, t)
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.1)
+    o.connect(og).connect(this.musicBus)
+    o.start(t)
+    o.stop(t + 0.12)
+  }
+
+  private driveCurve: Float32Array | null = null
+  private power(chord: number[], t: number, len: number, vol = 0.05) {
+    const ctx = this.ctx!
+    if (!this.driveCurve) {
+      const n = 1024
+      this.driveCurve = new Float32Array(n)
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1
+        this.driveCurve[i] = Math.tanh(x * 6)
+      }
+    }
+    const shaper = ctx.createWaveShaper()
+    shaper.curve = this.driveCurve
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 2300
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(vol, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(vol * 0.3, t + len * 0.8)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len)
+    shaper.connect(lp).connect(g)
+    g.connect(this.musicBus)
+    for (const m of chord) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.value = mtof(m)
+      const pre = ctx.createGain()
+      pre.gain.value = 0.5
+      o.connect(pre).connect(shaper)
+      o.start(t)
+      o.stop(t + len + 0.02)
+    }
+  }
+
   // ---------- music scheduler ----------
   playMusic(track: Track) {
     if (!this.ctx) return
     if (this.track === track) return
     this.stopMusic()
     this.track = track
-    const def = TRACKS[track]
+    const def = track === 'mcr' || track === 'mcrgrounds' ? MCR_TRACKS[track] : TRACKS[track as keyof typeof TRACKS]
     this.inIntro = !!def.intro
     this.barIndex = 0
     this.nextBarTime = this.ctx.currentTime + 0.15
@@ -503,6 +610,29 @@ class AudioEngine {
     } else if (def.arp === 'flow') {
       const seq = [r, fifth, third + 12, fifth, r + 12, fifth, third + 12, fifth]
       seq.forEach((m, i) => this.pluck(m, t0 + i * beat * 0.5, i % 2 === 0 ? 0.32 : 0.2))
+    } else if (def.arp === 'rock') {
+      const intro = this.inIntro
+      for (let b = 0; b < 4; b++) {
+        const tb = t0 + b * beat
+        if (b === 0 || b === 2 || (!intro && b === 3)) this.kick(tb)
+        if (!intro && (b === 1 || b === 3)) this.snare(tb)
+        if (intro && b === 3) this.snare(tb, 0.3)
+        this.hat(tb, false, 0.08)
+        this.hat(tb + beat * 0.5, false, 0.05)
+        // chugging eighth-note power chords and bass
+        for (const h of [0, 0.5]) {
+          this.power(bar.chord, tb + beat * h, beat * (h ? 0.42 : 0.46), intro ? 0.035 : 0.05)
+          this.bass(r - 12, tb + beat * h, beat * 0.42)
+        }
+      }
+      for (const [b, m, len, vel] of bar.melody) this.lead(m, t0 + b * beat, len * beat, vel ?? 0.5)
+      this.nextBarTime += barDur
+      this.barIndex++
+      if (this.inIntro && def.intro && this.barIndex >= def.intro.length) {
+        this.inIntro = false
+        this.barIndex = 0
+      }
+      return
     } else if (def.arp === 'disco') {
       const intro = this.inIntro
       for (let b = 0; b < 4; b++) {

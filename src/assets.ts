@@ -35,6 +35,25 @@ export const KD_GROUP = '/sprites/kd_group.webp'
 /** The eight K-drama actors, as named in their sprite files (see tools/extract_kdrama.py). */
 export const KD_ACTOR_IDS = ['haein', 'jongsuk', 'haneul', 'soohyun', 'wooseok', 'changwook', 'seonho', 'joohyuk'] as const
 
+/** The MCR band (public/ref/7.webp) and concert grounds (public/ref/8.webp), cut by tools/extract_mcr.py. */
+export const MCR_BAND = ['gerard', 'frank', 'ray', 'mikey', 'bob'] as const
+export type McrId = (typeof MCR_BAND)[number]
+export const MCR_FRAMES: Record<McrId, number> = { gerard: 5, frank: 4, ray: 3, mikey: 3, bob: 3 }
+/** The garden's gate to the grounds uses these, so they load with the rest of the garden. */
+export const MCR_GATE_SPRITES = ['mcrg_flag_mcr', 'mcrg_pole_spider', 'mcrg_welcome'] as const
+/** Everything else for the grounds and the show, loaded when the grounds open. */
+export const MCR_SPRITES = [
+  ...MCR_BAND.flatMap((id) => [`mcr_${id}`, ...Array.from({ length: MCR_FRAMES[id] }, (_, i) => `mcr_${id}_a${i + 1}`)]),
+  'mcr_logo', 'mcr_spider', 'mcr_heart', 'mcr_note', 'mcr_banner_black', 'mcr_banner_red', 'mcr_barricade',
+  'mcrg_stage', 'mcrg_tent_black', 'mcrg_tent_stripe', 'mcrg_tent_white', 'mcrg_merch', 'mcrg_food', 'mcrg_drinks',
+  'mcrg_barrier', 'mcrg_barrier_spider', 'mcrg_flag_heart', 'mcrg_flag_spider', 'mcrg_banner_big',
+  'mcrg_tower', 'mcrg_tower_warm', 'mcrg_speakers', 'mcrg_cases', 'mcrg_spider', 'mcrg_crowd_fence',
+  'mcrg_tree1', 'mcrg_tree2', 'mcrg_tree3', 'mcrg_potty', 'mcrg_potty2', 'mcrg_crates', 'mcrg_lamp', 'mcrg_bench',
+  'mcrg_case_yellow', 'mcrg_trash', 'mcrg_generator', 'mcrg_screen', 'mcrg_pole_red', 'mcrg_wheel',
+]
+/** The band's portraits are framed cards (JPEG), shown in their chat. */
+export const mcrPortrait = (id: McrId) => `/sprites/mcr_p_${id}.jpg`
+
 export const ALL_SPRITES = [
   ...BRIDE_POSES.map((p) => `bride_${p}`),
   ...CASUAL_POSES.map((p) => `bridec_${p}`),
@@ -57,6 +76,7 @@ export const ALL_SPRITES = [
   'bts_lightstick',
   ...KD_ACTOR_IDS.flatMap((id) => [`kd_${id}_idle`, `kd_${id}_happy`, `kd_${id}_oops`]),
   'kd_clapper',
+  ...MCR_GATE_SPRITES,
   'bow_blue',
   'bow_lav',
   'bow_green',
@@ -81,6 +101,25 @@ const cache = new Map<string, HTMLImageElement>()
 
 export function img(name: string) {
   return cache.get(name)
+}
+
+/** Load extra sprites into the cache on demand (for areas that open later, like the MCR grounds). */
+export function loadSprites(names: readonly string[]) {
+  return Promise.all(
+    names.map(
+      (n) =>
+        new Promise<void>((resolve) => {
+          if (cache.has(n)) return resolve()
+          const im = new Image()
+          im.decoding = 'async'
+          im.onload = im.onerror = () => {
+            cache.set(n, im)
+            resolve()
+          }
+          im.src = S(n)
+        }),
+    ),
+  )
 }
 
 export function preloadAll(onProgress?: (done: number, total: number) => void) {

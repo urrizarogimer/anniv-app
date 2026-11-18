@@ -28,8 +28,8 @@ export const PROPS: Prop[] = [
   { kind: 'fountain', x: 900, y: 690, seed: 1 },
   { kind: 'lamp', x: 690, y: 430, seed: 1 },
   { kind: 'lamp', x: 1110, y: 430, seed: 2 },
-  { kind: 'cart', x: 1500, y: 500, seed: 1 },
-  { kind: 'stage', x: 330, y: 486, seed: 1 },
+  { kind: 'cart', x: 330, y: 500, seed: 1 },
+  { kind: 'stage', x: 1480, y: 486, seed: 1 },
   { kind: 'bench', x: 1360, y: 820, seed: 2 },
   { kind: 'tree', x: 120, y: 420, seed: 11 },
   { kind: 'tree', x: 520, y: 380, seed: 12 },
@@ -49,13 +49,18 @@ export const PROPS: Prop[] = [
   { kind: 'bush', x: 1380, y: 1020, seed: 30 },
 ]
 
-/** The concert stage in the top-left lawn: (x, y) is the middle of its front edge. Tap it to start the show. */
-export const STAGE = { x: 330, y: 486, halfW: 136, h: 300, deckY: 486 - 66 }
+/** The concert stage in the top-right lawn: (x, y) is the middle of its front edge. Tap it to start the show. */
+export const STAGE = { x: 1480, y: 486, halfW: 136, h: 300, deckY: 486 - 66 }
 
 /** The gate to the K-Drama Garden, at the end of the right-hand path: (x, y) is its base. */
 export const KGATE = { x: 1700, y: 600, halfW: 70, h: 220 }
 
+/** The gate to the MCR Concert Grounds, at the end of the left-hand path: (x, y) is its base. */
+export const MGATE = { x: 110, y: 600, halfW: 75, h: 200 }
+
 export const OBSTACLES: Obstacle[] = [
+  { x: MGATE.x - 60, y: MGATE.y - 4, r: 12 },
+  { x: MGATE.x + 60, y: MGATE.y - 4, r: 12 },
   { x: KGATE.x - 62, y: KGATE.y - 4, r: 12 },
   { x: KGATE.x + 62, y: KGATE.y - 4, r: 12 },
   ...PROPS.flatMap((p): Obstacle[] => {
@@ -782,7 +787,7 @@ export const LIGHT_STRINGS: [number, number, number, number, number][] = [
   [690, 238, 820, 200, 40],
   [980, 200, 1110, 238, 40],
   [330, 390, 690, 238, 60],
-  [1110, 238, 1500, 300, 60],
+  [1110, 238, 1300, 262, 40],
 ]
 
 export function drawLights(ctx: CanvasRenderingContext2D, t: number, strings = LIGHT_STRINGS) {

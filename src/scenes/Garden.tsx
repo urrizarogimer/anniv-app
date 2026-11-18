@@ -9,9 +9,10 @@ import { BtsConcert } from '../components/BtsConcert'
 import { DPad } from '../components/DPad'
 import { DIRS } from '../game/controls'
 import { KDramaGarden } from '../kdrama/KDramaGarden'
+import { McrGrounds } from '../mcr/McrGrounds'
 import { renderKGate } from '../kdrama/kworld'
 import { loadProgress } from '../kdrama/progress'
-import { ITEM_SPOTS, KGATE, OBSTACLES, PROPS, STAGE, START, WALK_TOP, WH, WW, drawHeart, drawLights, drawStar, renderGround, renderProp } from '../game/world'
+import { ITEM_SPOTS, KGATE, MGATE, OBSTACLES, PROPS, STAGE, START, WALK_TOP, WH, WW, drawHeart, drawLights, drawStar, renderGround, renderProp } from '../game/world'
 
 const BRIDE_H_PX = 262 // native pixel height of bride_idle; all poses share this scale
 const BRIDE_WORLD_H = 132
@@ -28,12 +29,18 @@ function onStage(x: number, y: number) {
   return Math.abs(x - STAGE.x) < STAGE.halfW && y > STAGE.y - STAGE.h && y < STAGE.y + 12
 }
 
+function onMGate(x: number, y: number) {
+  return Math.abs(x - MGATE.x) < MGATE.halfW && y > MGATE.y - MGATE.h && y < MGATE.y + 12
+}
+
 function onGate(x: number, y: number) {
   return Math.abs(x - KGATE.x) < KGATE.halfW && y > KGATE.y - KGATE.h && y < KGATE.y + 12
 }
 
 // dev helper: ?kdrama opens the K-Drama Garden straight away
 const KDRAMA_FIRST = import.meta.env.DEV && new URLSearchParams(window.location.search).has('kdrama')
+// dev helper: ?mcr opens the MCR Concert Grounds straight away
+const MCR_FIRST = import.meta.env.DEV && new URLSearchParams(window.location.search).has('mcr')
 
 const ITEM_H: Record<ItemId, number> = { dress: 74, veil: 62, shoes: 46, bouquet: 64, tiara: 30, rings: 54, earrings: 32, perfume: 58 }
 
@@ -63,7 +70,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
   const keys = useRef(new Set<string>())
   const [collected, setCollected] = useState<ItemId[]>([])
   const [toast, setToast] = useState<{ item: ItemDef; cheer: string; key: number } | null>(null)
-  const [intro, setIntro] = useState(!KDRAMA_FIRST)
+  const [intro, setIntro] = useState(!KDRAMA_FIRST && !MCR_FIRST)
   const [done, setDone] = useState(false)
   const [allFound, setAllFound] = useState(false)
   const [chapelMsg, setChapelMsg] = useState(false)
@@ -72,6 +79,8 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
   const [nearStage, setNearStage] = useState(false)
   const [kdrama, setKdrama] = useState(KDRAMA_FIRST)
   const [nearGate, setNearGate] = useState(false)
+  const [mcr, setMcr] = useState(MCR_FIRST)
+  const [nearMGate, setNearMGate] = useState(false)
   const [kdCount, setKdCount] = useState(() => loadProgress().found.length)
   const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches, [])
 
@@ -105,6 +114,10 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
   const concertRef = useRef(concert)
   const gateRef = useRef(nearGate)
   const kdramaRef = useRef(kdrama)
+  const mgateRef = useRef(nearMGate)
+  const mcrRef = useRef(mcr)
+  mgateRef.current = nearMGate
+  mcrRef.current = mcr
   gateRef.current = nearGate
   kdramaRef.current = kdrama
   game.current.kdCount = kdCount
@@ -112,8 +125,8 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
   doneRef.current = done
   nearRef.current = nearStage
   concertRef.current = concert
-  game.current.paused = intro || done || concert || kdrama
-  game.current.hidden = kdrama // the K-Drama Garden covers the whole screen, so skip drawing this one
+  game.current.paused = intro || done || concert || kdrama || mcr
+  game.current.hidden = kdrama || mcr // these cover the whole screen, so skip drawing this one
 
   const openConcert = useCallback(() => {
     if (concertRef.current) return
@@ -131,6 +144,15 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
     game.current.target = null
     setToast(null)
     setKdrama(true)
+  }, [])
+
+  const openMcr = useCallback(() => {
+    if (mcrRef.current) return
+    audio.sfx('whoosh')
+    keys.current.clear()
+    game.current.target = null
+    setToast(null)
+    setMcr(true)
   }, [])
 
   const spawn = (x: number, y: number, n: number, kinds: Particle['kind'][] = ['star', 'heart']) => {
@@ -229,7 +251,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
         if ((e.target as HTMLElement)?.tagName === 'BUTTON') return // let the focused button handle it
         e.preventDefault()
-        if (concertRef.current || kdramaRef.current) return
+        if (concertRef.current || kdramaRef.current || mcrRef.current) return
         if (introRef.current) {
           audio.sfx('click')
           setIntro(false)
@@ -237,6 +259,8 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
           openConcert()
         } else if (gateRef.current && !doneRef.current) {
           openKdrama()
+        } else if (mgateRef.current && !doneRef.current) {
+          openMcr()
         } else if (doneRef.current) {
           audio.sfx('click')
           onComplete(ITEMS.map((i) => i.id))
@@ -253,7 +277,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [onComplete, openConcert, openKdrama])
+  }, [onComplete, openConcert, openKdrama, openMcr])
 
   // main loop
   useEffect(() => {
@@ -394,6 +418,11 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       if (atGate !== gateRef.current) {
         gateRef.current = atGate
         setNearGate(atGate)
+      }
+      const atMGate = !g.paused && Math.hypot(g.x - MGATE.x, (g.y - MGATE.y) * 1.3) < NEAR_GATE
+      if (atMGate !== mgateRef.current) {
+        mgateRef.current = atMGate
+        setNearMGate(atMGate)
       }
       // all items found and she has reached the chapel door
       if (g.allFound && !g.arrived && !g.paused && Math.hypot(g.x - CHAPEL.x, (g.y - CHAPEL.y) * 1.3) < AT_CHAPEL) reachChapel()
@@ -546,6 +575,46 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       ctx.fillText(label, x, y)
     }
 
+    // the MCR gate: a flag, the welcome sign and a spider banner, from the concert grounds sheet
+    const drawMGate = () => {
+      const put = (name: string, x: number, y: number, h: number) => {
+        const im = img(name)
+        if (!im || !im.width) return
+        const w = (im.width / im.height) * h
+        ctx.drawImage(im, x - w / 2, y - h, w, h)
+      }
+      ctx.fillStyle = 'rgba(40,30,40,0.22)'
+      ctx.beginPath()
+      ctx.ellipse(MGATE.x, MGATE.y, 90, 14, 0, 0, Math.PI * 2)
+      ctx.fill()
+      put('mcrg_welcome', MGATE.x + 4, MGATE.y - 8, 128)
+      put('mcrg_flag_mcr', MGATE.x - 60, MGATE.y + 2, 176)
+      put('mcrg_pole_spider', MGATE.x + 60, MGATE.y + 2, 170)
+    }
+
+    const drawMGateBubble = (t: number) => {
+      if (g.paused) return
+      const y = MGATE.y - MGATE.h - 26 + Math.sin(t * 3 + 2) * 5
+      const label = 'MCR Concert Grounds \u2665'
+      ctx.font = '700 16px Quicksand, ui-rounded, sans-serif'
+      const w = ctx.measureText(label).width + 28
+      const x = Math.max(MGATE.x, w / 2 + 8)
+      ctx.fillStyle = '#18131d'
+      ctx.strokeStyle = '#e2483f'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.roundRect(x - w / 2, y - 17, w, 32, 16)
+      ctx.moveTo(MGATE.x - 8, y + 15)
+      ctx.lineTo(MGATE.x, y + 25)
+      ctx.lineTo(MGATE.x + 8, y + 15)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#fff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, x, y)
+    }
+
     // once everything is found: the chapel door glows and calls her over
     const drawChapelCall = (t: number) => {
       const dx = CHAPEL.x
@@ -668,6 +737,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
         const gc = gate
         list.push({ y: KGATE.y, draw: () => ctx.drawImage(gc.canvas, KGATE.x + gc.ox, KGATE.y + gc.oy, gc.canvas.width / res, gc.canvas.height / res) })
       }
+      list.push({ y: MGATE.y, draw: drawMGate })
       list.push({ y: g.y, draw: () => drawBride(t, now) })
       list.sort((a, b) => a.y - b.y)
       list.forEach((d) => d.draw())
@@ -675,6 +745,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
       drawLights(ctx, t)
       drawStageBubble(t)
       drawGateBubble(t)
+      drawMGateBubble(t)
       if (g.allFound) drawChapelCall(t)
       for (const p of g.particles) {
         const a = 1 - p.life / p.max
@@ -735,6 +806,10 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
           }
           if (onGate((e.clientX - r.left) / g.scale + g.cam.x, (e.clientY - r.top) / g.scale + g.cam.y)) {
             openKdrama()
+            return
+          }
+          if (onMGate((e.clientX - r.left) / g.scale + g.cam.x, (e.clientY - r.top) / g.scale + g.cam.y)) {
+            openMcr()
             return
           }
           pointerDown.current = true
@@ -849,7 +924,26 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
         </div>
       )}
 
+      {/* walk up to the MCR gate and its button appears */}
+      {nearMGate && !mcr && !intro && !done && (
+        <div className="absolute inset-x-0 flex justify-center" style={{ bottom: 'calc(max(10px, env(safe-area-inset-bottom)) + 74px)' }}>
+          <button type="button" className="pill-btn anim-pop text-sm sm:text-base" style={{ background: 'linear-gradient(180deg, #e2483f 0%, #b3202a 55%, #8a1520 100%)', boxShadow: '0 6px 0 #5c0d15, 0 12px 24px rgba(92,13,21,0.35)', color: '#fff' }} onClick={openMcr}>
+            Enter the MCR Concert Grounds
+            <span className="play-dot">🎸</span>
+          </button>
+        </div>
+      )}
+
       {concert && <BtsConcert onClose={() => setConcert(false)} />}
+      {mcr && (
+        <McrGrounds
+          dressOn={game.current.dressOn}
+          onClose={() => {
+            audio.sfx('whoosh')
+            setMcr(false)
+          }}
+        />
+      )}
       {kdrama && (
         <KDramaGarden
           dressOn={game.current.dressOn}
@@ -873,7 +967,7 @@ export function Garden({ onComplete }: { onComplete: (items: ItemId[]) => void }
             <img src={S('face_1')} alt="" className="h-16 w-16 shrink-0 rounded-full bg-blush-100 object-cover sm:h-20 sm:w-20" />
             <div className="flex-1">
               <p className="text-[15px] font-bold leading-snug text-dusty-800 sm:text-base">
-                Oh no! My wedding things are scattered all over the garden. Help me find all 8 treasures before the ceremony! Psst… there’s a surprise on the stage, and K-drama stars are waiting past the gate! 💜
+                Oh no! My wedding things are scattered all over the garden. Help me find all 8 treasures before the ceremony! Psst… there’s a surprise on the stage, K-drama stars are waiting past the gate, and a rock show is on at the MCR Concert Grounds down the left path! 💜
               </p>
               <p className="mt-1 text-xs text-dusty-600 sm:text-sm">
                 {isTouch ? 'Tap where you want to go, or use the arrows.' : 'Move with arrow keys / WASD, or click where you want to go.'}
